@@ -35,8 +35,34 @@ app.get("/", (req, res) => {
 });
 
 app.get("/tasks", async (req, res) => {
-  const tasks = await Task.findAll();
-  res.json(tasks);
+  const cacheKey = "tasks:all";
+  
+  try {
+    // Tentar buscar do cache
+    const cachedTasks = await redisClient.get(cacheKey);
+    
+    if (cachedTasks) {
+      console.log("🎯 CACHE HIT: Tasks encontradas no cache");
+      return res.json(JSON.parse(cachedTasks));
+    }
+    
+    console.log("❌ CACHE MISS: Buscando tasks no banco de dados");
+    
+    // Buscar do banco de dados
+    const tasks = await Task.findAll();
+    
+    // Salvar no cache por 5 minutos (300 segundos)
+    await redisClient.setEx(cacheKey, 300, JSON.stringify(tasks));
+    
+    console.log("💾 Cache atualizado com", tasks.length, "tasks");
+    
+    res.json(tasks);
+  } catch (error) {
+    console.error("Erro no cache:", error);
+    // Fallback: buscar direto do banco
+    const tasks = await Task.findAll();
+    res.json(tasks);
+  }
 });
 
 app.post("/tasks", async (req, res) => {
