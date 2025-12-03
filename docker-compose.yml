@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Banco de dados PostgreSQL
   db-pweb:
@@ -7,7 +5,7 @@ services:
     container_name: db-pweb
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 921526
       POSTGRES_DB: todolist
     ports:
       - "5434:5432"
@@ -16,7 +14,7 @@ services:
     networks:
       - todo-pweb-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d todolist"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -34,13 +32,25 @@ services:
       DB_HOST: db-pweb
       DB_PORT: 5432
       DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_PASSWORD: 921526
       DB_NAME: todolist
+      REDIS_HOST: redis-pweb
+      REDIS_PORT: 6379
     ports:
       - "3000:3000"
     depends_on:
       db-pweb:
         condition: service_healthy
+    networks:
+      - todo-pweb-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis-pweb:
+    image: redis:7-alpine
+    container_name: redis-pweb
+    ports:
+      - "6380:6379"
     networks:
       - todo-pweb-network
     restart: unless-stopped

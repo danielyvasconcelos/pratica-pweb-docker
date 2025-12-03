@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import bd from "./src/models/index.js";
+import redisClient from "./src/config/redis.js";
 
 dotenv.config();
 
@@ -14,6 +15,13 @@ try {
 } catch (error) {
   console.error("Erro ao conectar ao banco de dados:", error);
   process.exit(1);
+}
+
+// Conecta ao Redis
+try {
+  await redisClient.connect();
+} catch (error) {
+  console.error("Erro ao conectar ao Redis:", error);
 }
 
 const app = express();
