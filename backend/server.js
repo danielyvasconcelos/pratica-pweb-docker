@@ -4,10 +4,27 @@ import dotenv from "dotenv";
 import bd from "./src/models/index.js";
 import redisClient from "./src/config/redis.js";
 import supabase from "./src/config/supabase.js";
+import multer from "multer";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
 const { Task } = bd;
+
+// Configurar multer para upload em memória
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas imagens são permitidas'), false);
+    }
+  }
+});
 
 // Função para invalidar cache
 const invalidateTasksCache = async () => {
@@ -125,6 +142,56 @@ app.delete("/tasks/:id", async (req, res) => {
   await invalidateTasksCache();
   
   res.status(204).send();
+});
+
+// Rota para upload de foto de perfil
+app.post("/profile/photo", upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhuma foto enviada" });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado" });
+    }
+
+    // Gerar nome único para o arquivo
+    const fileExtension = req.file.originalname.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `profiles/${fileName}`;
+
+    console.log("📷 Fazendo upload da foto:", fileName);
+
+    // Upload para Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(process.env.SUPABASE_BUCKET || 'profile-photos')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      });
+
+    if (error) {
+      console.error("Erro no upload:", error);
+      return res.status(500).json({ error: "Erro ao fazer upload da foto" });
+    }
+
+    // Obter URL pública da foto
+    const { data: publicUrlData } = supabase.storage
+      .from(process.env.SUPABASE_BUCKET || 'profile-photos')
+      .getPublicUrl(filePath);
+
+    console.log("✅ Upload realizado com sucesso:", publicUrlData.publicUrl);
+
+    res.json({
+      message: "Foto de perfil atualizada com sucesso",
+      photoUrl: publicUrlData.publicUrl,
+      fileName: fileName
+    });
+
+  } catch (error) {
+    console.error("Erro no upload:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
 });
 
 app.listen(port, '0.0.0.0', () => {
