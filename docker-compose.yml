@@ -36,6 +36,9 @@ services:
       DB_NAME: todolist
       REDIS_HOST: redis-pweb
       REDIS_PORT: 6379
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_BUCKET: ${SUPABASE_BUCKET}
     ports:
       - "3000:3000"
     depends_on:

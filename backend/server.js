@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import bd from "./src/models/index.js";
 import redisClient from "./src/config/redis.js";
+import supabase from "./src/config/supabase.js";
 
 dotenv.config();
 
