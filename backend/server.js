@@ -8,6 +8,20 @@ dotenv.config();
 
 const { Task } = bd;
 
+// Função para invalidar cache
+const invalidateTasksCache = async () => {
+  try {
+    if (redisClient.isOpen) {
+      await redisClient.del("tasks:all");
+      console.log("🗑️ Cache de tasks invalidado");
+    } else {
+      console.log("⚠️ Redis desconectado - cache não invalidado");
+    }
+  } catch (error) {
+    console.error("Erro ao invalidar cache:", error.message);
+  }
+};
+
 // Testa a conexão com o banco de dados
 try {
   await bd.sequelize.authenticate();
@@ -36,31 +50,39 @@ app.get("/", (req, res) => {
 
 app.get("/tasks", async (req, res) => {
   const cacheKey = "tasks:all";
+  let tasks;
   
   try {
-    // Tentar buscar do cache
-    const cachedTasks = await redisClient.get(cacheKey);
-    
-    if (cachedTasks) {
-      console.log("🎯 CACHE HIT: Tasks encontradas no cache");
-      return res.json(JSON.parse(cachedTasks));
+    // Tentar buscar do cache se Redis estiver conectado
+    if (redisClient.isOpen) {
+      const cachedTasks = await redisClient.get(cacheKey);
+      
+      if (cachedTasks) {
+        console.log("🎯 CACHE HIT: Tasks encontradas no cache");
+        return res.json(JSON.parse(cachedTasks));
+      }
     }
     
     console.log("❌ CACHE MISS: Buscando tasks no banco de dados");
     
     // Buscar do banco de dados
-    const tasks = await Task.findAll();
+    tasks = await Task.findAll();
     
-    // Salvar no cache por 5 minutos (300 segundos)
-    await redisClient.setEx(cacheKey, 300, JSON.stringify(tasks));
-    
-    console.log("💾 Cache atualizado com", tasks.length, "tasks");
+    // Salvar no cache se Redis estiver conectado
+    if (redisClient.isOpen) {
+      try {
+        await redisClient.setEx(cacheKey, 300, JSON.stringify(tasks));
+        console.log("💾 Cache atualizado com", tasks.length, "tasks");
+      } catch (cacheError) {
+        console.log("⚠️ Erro ao salvar no cache:", cacheError.message);
+      }
+    }
     
     res.json(tasks);
   } catch (error) {
-    console.error("Erro no cache:", error);
+    console.error("Erro geral:", error.message);
     // Fallback: buscar direto do banco
-    const tasks = await Task.findAll();
+    tasks = await Task.findAll();
     res.json(tasks);
   }
 });
@@ -69,6 +91,10 @@ app.post("/tasks", async (req, res) => {
   const { description } = req.body;
   if (!description) return res.status(400).json({ error: "Descrição obrigatória" });
   const task = await Task.create({ description, completed: false });
+  
+  // Invalidar cache após criar task
+  await invalidateTasksCache();
+  
   res.status(201).json(task);
 });
 
@@ -83,12 +109,20 @@ app.put("/tasks/:id", async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task) return res.status(404).json({ error: "Tarefa não encontrada" });
   await task.update({ description, completed });
+  
+  // Invalidar cache após atualizar task
+  await invalidateTasksCache();
+  
   res.json(task);
 });
 
 app.delete("/tasks/:id", async (req, res) => {
   const deleted = await Task.destroy({ where: { id: req.params.id } });
   if (!deleted) return res.status(404).json({ error: "Tarefa não encontrada" });
+  
+  // Invalidar cache após deletar task
+  await invalidateTasksCache();
+  
   res.status(204).send();
 });
 
