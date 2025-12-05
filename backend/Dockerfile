@@ -26,6 +26,6 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Comando para iniciar a aplicação (executa migrations e inicia servidor)
-CMD ["./start.sh"]
+# Comando para iniciar a aplicação diretamente
+CMD ["node", "server.js"]
 
