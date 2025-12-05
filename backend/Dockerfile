@@ -1,8 +1,8 @@
 # Use a imagem oficial do Node.js como base
-FROM node:18-alpine
+FROM node:20-alpine
 
-# Instala o bash e postgresql-client para executar scripts e comandos SQL
-RUN apk add --no-cache bash postgresql-client
+# Instala o bash, postgresql-client e curl para executar scripts e healthcheck
+RUN apk add --no-cache bash postgresql-client curl
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app

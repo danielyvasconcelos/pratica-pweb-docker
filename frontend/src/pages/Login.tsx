@@ -9,17 +9,26 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { register as registerUser } from '@/api/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
+const registerSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+});
+
 type LoginFormData = z.infer<typeof loginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -27,22 +36,40 @@ const Login = () => {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+    reset,
+  } = useForm<LoginFormData | RegisterFormData>({
+    resolver: zodResolver(isRegisterMode ? registerSchema : loginSchema),
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: LoginFormData | RegisterFormData) => {
     setIsLoading(true);
     try {
-      const success = await login(data.email, data.password);
-      if (success) {
-        navigate('/');
+      if (isRegisterMode) {
+        const registerData = data as RegisterFormData;
+        const result = await registerUser(registerData.email, registerData.password, registerData.name);
+        if (result) {
+          const authTokens = { accessToken: result.token, refreshToken: result.token };
+          localStorage.setItem('authTokens', JSON.stringify(authTokens));
+          localStorage.setItem('user', JSON.stringify(result.user));
+          navigate('/');
+        }
+      } else {
+        const loginData = data as LoginFormData;
+        const success = await login(loginData.email, loginData.password);
+        if (success) {
+          navigate('/');
+        }
       }
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('Erro:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsRegisterMode(!isRegisterMode);
+    reset();
   };
 
   return (
@@ -51,14 +78,33 @@ const Login = () => {
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              Entrar na sua conta
+              {isRegisterMode ? 'Criar conta' : 'Entrar na sua conta'}
             </CardTitle>
             <CardDescription className="text-center">
-              Digite seu email e senha para acessar sua conta
+              {isRegisterMode 
+                ? 'Preencha os dados para criar sua conta'
+                : 'Digite seu email e senha para acessar sua conta'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {isRegisterMode && (
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Seu nome"
+                    {...register('name')}
+                    className={errors.name ? 'border-red-500' : ''}
+                  />
+                  {errors.name && (
+                    <p className="text-sm text-red-500">{errors.name.message}</p>
+                  )}
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -110,12 +156,26 @@ const Login = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Entrando...
+                    {isRegisterMode ? 'Criando conta...' : 'Entrando...'}
                   </>
                 ) : (
-                  'Entrar'
+                  isRegisterMode ? 'Criar conta' : 'Entrar'
                 )}
               </Button>
+              
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={toggleMode}
+                  className="text-sm"
+                >
+                  {isRegisterMode 
+                    ? 'Já tem uma conta? Faça login'
+                    : 'Não tem uma conta? Registre-se'
+                  }
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

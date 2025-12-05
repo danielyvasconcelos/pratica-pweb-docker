@@ -3,9 +3,13 @@ import path from 'path';
 import Sequelize from 'sequelize';
 import configFile from '../config/config.js';
 
-const env = process.env.NODE_ENV;
-const config = configFile[env];
+const env = process.env.NODE_ENV || 'development';
+const config = configFile[env] || configFile.development;
 const bd = {};
+
+if (!config) {
+  throw new Error(`Configuração não encontrada para ambiente: ${env}`);
+}
 
 const sequelize = new Sequelize(
   config.database,
