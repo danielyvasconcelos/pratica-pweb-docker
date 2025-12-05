@@ -6,10 +6,12 @@ import redisClient from "./src/config/redis.js";
 import supabase from "./src/config/supabase.js";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
+import { authenticateToken } from "./src/middleware/auth.js";
+import { hashPassword, comparePassword, generateToken } from "./src/utils/auth.js";
 
 dotenv.config();
 
-const { Task } = bd;
+const { Task, User } = bd;
 
 // Configurar multer para upload em memória
 const upload = multer({
@@ -144,8 +146,112 @@ app.delete("/tasks/:id", async (req, res) => {
   res.status(204).send();
 });
 
-// Rota para upload de foto de perfil
-app.post("/profile/photo", upload.single('photo'), async (req, res) => {
+// POST /signin - Autenticação
+app.post("/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email e senha são obrigatórios" });
+    }
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: "Credenciais inválidas" });
+    }
+
+    const isValidPassword = await comparePassword(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Credenciais inválidas" });
+    }
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        photoUrl: user.photoUrl
+      }
+    });
+  } catch (error) {
+    console.error("Erro no signin:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+// POST /signup - Registro
+app.post("/signup", async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email e senha são obrigatórios" });
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email já cadastrado" });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      name
+    });
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        photoUrl: user.photoUrl
+      }
+    });
+  } catch (error) {
+    console.error("Erro no signup:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+// GET /profile - Perfil protegido
+app.get("/profile", authenticateToken, async (req, res) => {
+  res.json({
+    id: req.user.id,
+    email: req.user.email,
+    name: req.user.name,
+    photoUrl: req.user.photoUrl
+  });
+});
+
+// PUT /profile - Atualizar perfil
+app.put("/profile", authenticateToken, async (req, res) => {
+  try {
+    const { name, photoUrl } = req.body;
+    
+    await req.user.update({ name, photoUrl });
+    
+    res.json({
+      id: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      photoUrl: req.user.photoUrl
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar perfil:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+// POST /profile/photo - Upload foto (protegido)
+app.post("/profile/photo", authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "Nenhuma foto enviada" });
@@ -181,6 +287,9 @@ app.post("/profile/photo", upload.single('photo'), async (req, res) => {
       .getPublicUrl(filePath);
 
     console.log("✅ Upload realizado com sucesso:", publicUrlData.publicUrl);
+
+    // Atualizar photoUrl no banco
+    await req.user.update({ photoUrl: publicUrlData.publicUrl });
 
     res.json({
       message: "Foto de perfil atualizada com sucesso",
