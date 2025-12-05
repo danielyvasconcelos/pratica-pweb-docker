@@ -36,17 +36,23 @@ services:
       DB_NAME: todolist
       REDIS_HOST: redis-pweb
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
-      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS}
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
-      SUPABASE_BUCKET: ${SUPABASE_BUCKET}
+      JWT_SECRET: sua_chave_secreta_jwt_super_segura_2024
+      JWT_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS: 12
+      SUPABASE_URL: https://dlkailwsqtpfjpufozyv.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsa2FpbHdzcXRwZmpwdWZvenl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3OTkzNTEsImV4cCI6MjA4MDM3NTM1MX0.8c_mJJiq8dvT6q-kTE5oHwatYRsxKewFn1HmDu7ECgg
+      SUPABASE_BUCKET: profile-photos
     ports:
       - "3000:3000"
     depends_on:
       db-pweb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - todo-pweb-network
     restart: unless-stopped
@@ -67,12 +73,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=http://localhost:3000
+        - VITE_API_BASE_URL=http://backend-pweb:3000
     container_name: frontend-pweb
     ports:
       - "80:80"
     depends_on:
-      - backend-pweb
+      backend-pweb:
+        condition: service_healthy
     networks:
       - todo-pweb-network
     restart: unless-stopped

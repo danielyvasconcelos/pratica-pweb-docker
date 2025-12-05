@@ -1,6 +1,6 @@
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = "/api";
 
 export interface LoginRequest {
   email: string;
@@ -8,8 +8,8 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
+  token: string;
+  user: User;
 }
 
 export interface User {
@@ -40,7 +40,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
       const data: LoginResponse = await response.json();
       dismissToast(loadingToastId);
       showSuccess("Login realizado com sucesso!");
-      return data;
+      return { token: data.token, user: data.user };
     } else {
       throw new Error("Credenciais inválidas");
     }
@@ -70,6 +70,34 @@ export const getProfile = async (accessToken: string): Promise<User | null> => {
     }
   } catch (error) {
     console.error("Erro ao carregar perfil:", error);
+    return null;
+  }
+};
+
+export const register = async (email: string, password: string, name: string): Promise<LoginResponse | null> => {
+  const loadingToastId = showLoading("Criando conta...");
+  try {
+    const response = await fetch(`${API_BASE_URL}/signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password, name }),
+    });
+
+    if (response.ok) {
+      const data: LoginResponse = await response.json();
+      dismissToast(loadingToastId);
+      showSuccess("Conta criada com sucesso!");
+      return { token: data.token, user: data.user };
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Erro ao criar conta");
+    }
+  } catch (error) {
+    dismissToast(loadingToastId);
+    showError(error instanceof Error ? error.message : "Erro ao criar conta.");
+    console.error("Erro no registro:", error);
     return null;
   }
 };

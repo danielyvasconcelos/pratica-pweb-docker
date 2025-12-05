@@ -37,18 +37,9 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // TEMPORÁRIO: Mockar dados para teste
-  const [user, setUser] = useState<User | null>({
-    id: '1',
-    name: 'João Silva',
-    email: 'joao.silva@exemplo.com',
-    photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-  });
-  const [tokens, setTokens] = useState<AuthTokens | null>({
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token'
-  });
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [tokens, setTokens] = useState<AuthTokens | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const isAuthenticated = !!user && !!tokens;
 
@@ -80,8 +71,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${API_BASE_URL}/signin`, {
+      const response = await fetch('/api/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,33 +81,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        const { accessToken, refreshToken } = data;
+        const { token, user: userData } = data;
         
-        setTokens({ accessToken, refreshToken });
-        localStorage.setItem('authTokens', JSON.stringify({ accessToken, refreshToken }));
+        const authTokens = { accessToken: token, refreshToken: token };
+        setTokens(authTokens);
+        setUser(userData);
         
-        // Buscar dados do usuário
-        const userResponse = await fetch(`${API_BASE_URL}/profile`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-        } else {
-          // Se não conseguir buscar o perfil, criar um usuário básico
-          const basicUser = {
-            id: '1',
-            name: email.split('@')[0],
-            email: email,
-            photo: ''
-          };
-          setUser(basicUser);
-          localStorage.setItem('user', JSON.stringify(basicUser));
-        }
+        localStorage.setItem('authTokens', JSON.stringify(authTokens));
+        localStorage.setItem('user', JSON.stringify(userData));
 
         return true;
       }
